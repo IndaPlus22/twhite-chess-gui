@@ -1,0 +1,271 @@
+use std::fmt;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum GameState {
+    InProgress,
+    Check,
+    GameOver,
+}
+
+#[derive(PartialEq, Copy, Clone)]
+pub enum Color {
+    White,
+    Black,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum PieceType {
+    Pawn,
+    Rook,
+    Knight,
+    Bishop,
+    Queen,
+    King,
+}
+
+/* IMPORTANT:
+ * - Document well!
+ * - Write well structured and clean code!
+ */
+
+#[derive(Copy, Clone)]
+ pub struct Piece {
+    color: Color,
+    piece_type: PieceType,
+}
+
+pub struct Game {
+    /* save board, active colour, ... */
+    state: GameState,
+    active_color: Color,
+    board: [Option<Piece>; 8*8],
+}
+
+impl Game {
+    /// Initialises a new board with pieces.
+    pub fn new() -> Game {
+        use Color::*;
+        use PieceType::*;
+
+        let w_pawn = Some(Piece { color: White, piece_type: Pawn });
+        let w_rook = Some(Piece { color: White, piece_type: Rook });
+        let w_knight = Some(Piece { color: White, piece_type: Knight });
+        let w_bishop = Some(Piece { color: White, piece_type: Bishop });
+        let w_queen = Some(Piece { color: White, piece_type: Queen });
+        let w_king = Some(Piece { color: White, piece_type: King });
+
+        let b_pawn = Some(Piece { color: Black, piece_type: Pawn });
+        let b_rook = Some(Piece { color: Black, piece_type: Rook });
+        let b_knight = Some(Piece { color: Black, piece_type: Knight });
+        let b_bishop = Some(Piece { color: Black, piece_type: Bishop });
+        let b_queen = Some(Piece { color: Black, piece_type: Queen });
+        let b_king = Some(Piece { color: Black, piece_type: King });
+
+        Game {
+            /* initialise board, set active colour to white, ... */
+            state: GameState::InProgress,
+            active_color: White,
+            board: [
+                b_rook, b_knight, b_bishop, b_queen, b_king, b_bishop, b_knight, b_rook,
+                b_pawn, b_pawn,   b_pawn,   b_pawn,  b_pawn, b_pawn,   b_pawn,   b_pawn,
+                None,   None,     None,     None,    None,   None,     None,     None,
+                None,   None,     None,     None,    None,   None,     None,     None,
+                None,   None,     None,     None,    None,   None,     None,     None,
+                None,   None,     None,     None,    None,   None,     None,     None,
+                w_pawn, w_pawn,   w_pawn,   w_pawn,  w_pawn, w_pawn,   w_pawn,   w_pawn,
+                w_rook, w_knight, w_bishop, w_queen, w_king, w_bishop, w_knight, w_rook,
+            ],
+        }
+    }
+
+    /// If the current game state is InProgress and the move is legal,
+    /// move a piece and return the resulting state of the game.
+    pub fn make_move(&mut self, from: String, to: String) -> Option<GameState> {
+        let possible_moves: Vec<String> = match self.get_possible_moves(&from) {
+            Some(i) => i,
+            None => {
+                println!("There is no piece on that slot!");
+                return None;
+            },
+        };
+        
+        // Player is trying to move an enemy piece
+        if self.board[an_to_index(&from)].unwrap().color != self.active_color {
+            println!("Cannot move enemy piece!");
+            return None;
+        }
+
+        if !possible_moves.contains(&to) {
+            println!("That move is illegal!");
+            return None;
+        }
+
+        let old_index = an_to_index(&from);
+        let new_index = an_to_index(&to);
+
+        let mut state: GameState = GameState::InProgress;
+
+        // We know that the move is legal, the other potential piece must be the other color
+        if self.board[new_index].is_some() && 
+        self.board[new_index].unwrap().piece_type == PieceType::King {
+            state = GameState::GameOver;
+        }
+
+        // Todo: check for GameState::Check
+
+        // Move piece
+        self.board[new_index] = self.board[old_index];
+        self.board[old_index] = None;
+
+        // Switch turn
+        self.active_color = if self.active_color == Color::White { Color::Black } else { Color::White };
+
+        println!("{:?}", self);
+
+        Some(state)
+    }
+
+    /// Set the piece type that a peasant becomes following a promotion.
+    pub fn set_promotion(&mut self, piece: String, new_type: PieceType) {
+        let index = an_to_index(&piece);
+        // Update piece to new type
+        self.board[index] = Some(Piece { color: self.board[index].unwrap().color, piece_type: new_type });
+        println!("{:?}", self);
+    }
+
+    /// Get the current game state.
+    pub fn get_game_state(&self) -> GameState {
+        self.state
+    }
+
+    /// If a piece is standing on the given tile, return all possible
+    /// new positions of that piece. Don't forget to the rules for check.
+    ///
+    /// (optional) Don't forget to include en passent and castling.
+    pub fn get_possible_moves(&self, position: &String) -> Option<Vec<String>> {
+        let index: usize = an_to_index(position);
+        let piece = match self.board[index] {
+            Some(i) => i,
+            None => return None,
+        };
+        
+        let rook_moves = self.rook_moves(index);
+        let bishop_moves = self.bishop_moves(index);
+        
+        // List all theoretically possible moves
+        use PieceType::*;
+        let mut option_moves: Vec<Option<usize>> = match piece.piece_type {
+            Pawn => self.pawn_moves(index),
+            Rook => rook_moves,
+            Knight => vec![ self.rel_pos(index, -1, -2), self.rel_pos(index, 1, -2),// #1#1#
+                            self.rel_pos(index, -2, -1), self.rel_pos(index, 2, -1),// 1###1
+                                                                                    // ##X##    (Knight moves)
+                            self.rel_pos(index, -2, 1), self.rel_pos(index, 2, 1),  // 1###1
+                            self.rel_pos(index, -1, 2), self.rel_pos(index, 1, 2),  // #1#1#
+                        ],
+            Bishop => bishop_moves,
+            Queen => [rook_moves, bishop_moves].concat(),
+            King => vec![self.rel_pos(index, -1, -1), self.rel_pos(index, 0, -1), self.rel_pos(index, 1, -1),
+                        self.rel_pos(index, -1, 0),                               self.rel_pos(index, 1, 0),
+                        self.rel_pos(index, -1, 1),  self.rel_pos(index, 0, 1), self.rel_pos(index, 1, 1),
+                        ],
+        };
+
+        // Remove all None
+        option_moves.retain(|x| x.is_some());
+
+        // New Vec of positions with algebraic notation (Strings)
+        let moves = option_moves.iter()
+            .map(|x| index_to_an(x.unwrap()))
+            .collect();
+
+        Some(moves)
+    }
+
+    /// Returns relative index position to pos with difference in x (dx) and difference in y (dy).
+    /// Returns None if relative position is outside the board or there is a piece of the same color there.
+    fn rel_pos(&self, pos: usize, dx: i32, dy: i32) -> Option<usize> {
+        let rel_pos = pos as i32 + dy * 8 + dx;
+    
+        let different_row: bool = rel_pos / 8 != (pos as i32 + dy * 8) / 8;
+        let outside_bounds: bool = rel_pos < 0 || rel_pos > 63;
+        let same_color: bool = !outside_bounds && self.board[rel_pos as usize].is_some() &&
+            self.board[rel_pos as usize].unwrap().color == self.active_color;
+
+        if outside_bounds || different_row || same_color {
+            return None;
+        }
+
+        Some(rel_pos as usize)
+    }
+    
+    /// Marches with a leap size, adds position to Vec and stops when it hits a piece
+    fn march(&self, start: usize, dx: i32, dy: i32, moves: &mut Vec<Option<usize>>) {        
+        for i in 1..7 {
+            match self.rel_pos(start, dx * i, dy * i) {
+                Some(i) => {
+                    moves.push(Some(i));
+                    if self.board[i].is_some() { break; } // So that rooks and bishops cannot pass through enemy pieces
+                },
+                None => break,
+            }
+        }
+    }
+
+    /// List all possible moves for a rook
+    fn rook_moves(&self, start: usize) -> Vec<Option<usize>> {
+        let mut moves: Vec<Option<usize>> = Vec::new();        
+        self.march(start, 0, -1, &mut moves); // Up
+        self.march(start, 0, 1, &mut moves); // Down
+        self.march(start, -1, 0, &mut moves); // Left
+        self.march(start, 1, 0, &mut moves); // Right
+
+        moves
+    }
+
+    /// List all possible moves for a bishop
+    fn bishop_moves(&self, start: usize) -> Vec<Option<usize>> {
+        let mut moves: Vec<Option<usize>> = Vec::new();
+        self.march(start, -1, -1, &mut moves); // Up left
+        self.march(start, 1, -1, &mut moves); // Up right
+        self.march(start, -1, 1, &mut moves); // Down left
+        self.march(start, 1, 1, &mut moves); // Down right
+
+        moves
+    }
+
+    /// List all possible moves for a pawn
+    fn pawn_moves(&self, start: usize) -> Vec<Option<usize>> {
+        let mut moves: Vec<Option<usize>> = Vec::new();
+
+        let direction: i32 = if self.active_color == Color::White { -1 } else { 1 };
+
+        // One step forward
+        moves.push(self.rel_pos(start, 0, direction));
+
+        // Start position for black or white pawns, two steps forward
+        if start / 8 == 1 && direction == 1 ||
+        start / 8 == 6 && direction == -1 {
+            moves.push(self.rel_pos(start, 0, 2 * direction));
+        }
+
+        let left_attack = self.rel_pos(start, -1, direction);
+        let right_attack = self.rel_pos(start, 1, direction);
+
+        // There is a piece diagonally to the left and it's an enemy
+        if left_attack.is_some() && 
+        self.board[left_attack.unwrap()].is_some() &&
+        self.board[left_attack.unwrap()].unwrap().color != self.active_color {
+            moves.push(left_attack);
+        }
+
+        // There is a piece diagonally to the right and it's an enemy
+        if right_attack.is_some() && 
+        self.board[right_attack.unwrap()].is_some() &&
+        self.board[right_attack.unwrap()].unwrap().color != self.active_color {
+            moves.push(right_attack);
+        }
+
+        moves
+    }
+}
