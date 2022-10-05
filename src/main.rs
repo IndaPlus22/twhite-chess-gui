@@ -17,17 +17,17 @@ use opengl_graphics::{GlGraphics, GlyphCache, OpenGL, Texture, TextureSettings};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
-use piston::{Button, MouseButton, MouseCursorEvent, PressEvent};
+use piston::{Button, MouseButton, MouseCursorEvent, PressEvent, ReleaseEvent};
 
 /// A chess board is 8x8 tiles.
 const GRID_SIZE: i16 = 8;
 /// Sutible size of each tile.
-const GRID_CELL_SIZE: (i16, i16) = (90, 90);
+const GRID_CELL_SIZE: (i16, i16) = (100, 100);
 
 /// Size of the application window.
 const SCREEN_SIZE: (f32, f32) = (
     GRID_SIZE as f32 * GRID_CELL_SIZE.0 as f32,
-    GRID_SIZE as f32 * GRID_CELL_SIZE.1 as f32,
+    GRID_SIZE as f32 * GRID_CELL_SIZE.1 as f32 + 40.0,
 );
 
 // GUI Color representations
@@ -37,9 +37,10 @@ const WHITE: [f32; 4] = [188.0 / 255.0, 140.0 / 255.0, 76.0 / 255.0, 1.0];
 pub struct App {
     gl: GlGraphics,                                 // OpenGL drawing backend.
     mouse_pos: [f64; 2],                            // Current mouse postition
+    //left_click: bool, 
     sprites: HashMap<(Colour, PieceType), Texture>, // For easy access to the apropriate PNGs
     board: [[Option<(Colour, PieceType)>; 8]; 8], // Or whatever way you prefer to represent the board (hint: might not be neccesary)
-    game: Game, // Save piece positions, which tiles has been clicked, current colour, etc...
+    game: Game,// Save piece positions, which tiles has been clicked, current colour, etc...
 }
 
 impl App {
@@ -51,9 +52,9 @@ impl App {
                 Some((colour, PieceType::Bishop)),
                 Some((colour, PieceType::Queen)),
                 Some((colour, PieceType::King)),
-                Some((colour, PieceType::Rook)),
-                Some((colour, PieceType::Knight)),
                 Some((colour, PieceType::Bishop)),
+                Some((colour, PieceType::Knight)),
+                Some((colour, PieceType::Rook)),
             ]
         };
         let pawn_rank = |colour| [Some((colour, PieceType::Pawn)); 8];
@@ -92,16 +93,16 @@ impl App {
                         match col % 2 {
                             0 => {
                                 if row % 2 == 0 {
-                                    WHITE
-                                } else {
                                     BLACK
+                                } else {
+                                    WHITE
                                 }
                             }
                             _ => {
                                 if row % 2 == 0 {
-                                    BLACK
-                                } else {
                                     WHITE
+                                } else {
+                                    BLACK
                                 }
                             }
                         },
@@ -128,6 +129,12 @@ impl App {
                     }
                 }
             }
+
+            //TODO klick grejer, när håller inne en pjäs så ska pjäsen ritas där jag drar musen
+            //returnera alla rutor kan gå på 
+            // När man drar pjäsen till en ruta och släpper left_click så kolla om den rutan finns i get_possible_moves
+            //om den finns, make_move dit 
+            //
 
             // Draw text
             // We do some calculations to center the text
@@ -210,7 +217,10 @@ fn main() {
             app.mouse_pos = pos;
         }
         if let Some(Button::Mouse(MouseButton::Left)) = e.press_args() {
-            // Handle mouse press
+            // TODO Handle mouse press
+        }
+        else if e.press_args().is_none() {
+            // TODO Handle mouse press
         }
     }
 }
